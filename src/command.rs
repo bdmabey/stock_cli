@@ -4,17 +4,29 @@ use crossterm::terminal::{self, ClearType, EnterAlternateScreen};
 use crossterm::cursor::{self};
 use crossterm::event::{self, Event, KeyEvent, KeyCode, read};
 use std::time::Duration;
-use std::thread;
+use std::{thread, process};
 
 const WELCOME: &str = r#"Welcome to my stock simulator.
 
-Please select a command from below:
+Please select a command from below (You may enter the number or type out the command):
 1)Begin
 2)Help
 3)Quit"#;
 
 const HELP: &str = r#"This program simulates a few stocks.
-"#;
+From the Welcome screen select Begin to get started.
+You will then be asked if you have a previous user and if you would like to use them or not.
+If you do want to use your previous user it will be loaded at this point.
+If you don't have one/want to create a new one, you will do so at this point.
+Commands can either be selected with the number next to it or by typing out the command.
+
+At this point you will be able to buy and sell stocks with the program randomly updating the cost
+every 5 seconds.
+
+
+Please select a command from below:
+1)Back
+2)Quit"#;
 
 pub fn startup<W>(w: &mut W) -> Result<()>
 where
@@ -27,8 +39,7 @@ where
         queue!(
             w,
             terminal::Clear(ClearType::All),
-            cursor::Show,
-            cursor::MoveTo(0,1),
+            cursor::MoveTo(0,0),
         )?;
 
         for line in WELCOME.split('\n') {
@@ -63,7 +74,7 @@ where
 {
     loop {
 
-        execute!(
+        queue!(
             w,
             terminal::Clear(ClearType::All),
             cursor::MoveTo(0,0)
@@ -80,8 +91,17 @@ where
         w.flush().unwrap();
 
         let input = read_line();
-        if input == "back" {
+        if input == "back" || input == "1" || input == "Back"{
             break
+        }
+        if input == "quit" || input == "2" || input == "Quit"{
+            execute!(
+                w,
+                style::ResetColor,
+                terminal::LeaveAlternateScreen,
+            ).unwrap();
+            terminal::disable_raw_mode();
+            process::exit(0)
         }
     }
 }
@@ -96,7 +116,6 @@ pub fn read_line() -> String {
                     stdout,
                     cursor::MoveLeft(1),
                     terminal::Clear(ClearType::FromCursorDown),
-                    // cursor::MoveTo(0,7)
                 ).unwrap();
                 line = "".parse().unwrap();
             }
