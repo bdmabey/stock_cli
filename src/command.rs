@@ -11,11 +11,10 @@ const WELCOME: &str = r#"Welcome to my stock simulator.
 Please select a command from below:
 1)Begin
 2)Help
-3)Exit"#;
+3)Quit"#;
 
-enum Command {
-
-}
+const HELP: &str = r#"This program simulates a few stocks.
+"#;
 
 pub fn startup<W>(w: &mut W) -> Result<()>
 where
@@ -28,7 +27,7 @@ where
         queue!(
             w,
             terminal::Clear(ClearType::All),
-            cursor::Hide,
+            cursor::Show,
             cursor::MoveTo(0,1),
         )?;
 
@@ -40,11 +39,11 @@ where
 
         let input = read_line();
 
-        if input == "quit" {
+        if input == "quit" || input == "3" || input == "Quit"{
             break
         }
-        if input == "" {
-
+        if input == "help" || input == "2" || input == "Help"{
+            help(w)
         }
     }
 
@@ -58,11 +57,49 @@ where
     terminal::disable_raw_mode()
 }
 
+fn help<W>(w: &mut W)
+where
+    W: Write,
+{
+    loop {
+
+        execute!(
+            w,
+            terminal::Clear(ClearType::All),
+            cursor::MoveTo(0,0)
+        ).unwrap();
+
+        for line in HELP.split('\n') {
+            queue!(
+                w,
+                style::Print(line),
+                cursor::MoveToNextLine(1),
+            ).unwrap();
+        }
+
+        w.flush().unwrap();
+
+        let input = read_line();
+        if input == "back" {
+            break
+        }
+    }
+}
+
 pub fn read_line() -> String {
     let mut line = String::new();
     let mut stdout = stdout();
     while let Event::Key(KeyEvent { code, .. }) = event::read().unwrap() {
         match code {
+            KeyCode::Backspace => {
+                execute!(
+                    stdout,
+                    cursor::MoveLeft(1),
+                    terminal::Clear(ClearType::FromCursorDown),
+                    // cursor::MoveTo(0,7)
+                ).unwrap();
+                line = "".parse().unwrap();
+            }
             KeyCode::Enter => {
                 break;
             }
