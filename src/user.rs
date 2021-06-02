@@ -1,4 +1,4 @@
-use std::io::{Write, stdout};
+use std::io::{Write, stdout, ErrorKind};
 use crossterm::{execute, queue};
 use crossterm::terminal::{self, Clear, ClearType};
 use crossterm::cursor::{self};
@@ -9,6 +9,7 @@ use std::time::Duration;
 use std::fs::File;
 use crossterm::event::poll;
 use std::process::exit;
+use std::panic::panic_any;
 
 
 const CREATE: &str = r#"We will now create a new user for you.
@@ -19,7 +20,7 @@ Quit"#;
 
 pub struct User {
     pub username: String,
-    pub stocks: i32
+    pub stocks_create: i32
 }
 
 pub fn create<W>(w: &mut W)
@@ -28,7 +29,7 @@ where
 {
     let mut user = User{
         username: "".parse().unwrap(),
-        stocks: 0
+        stocks_create: 0
     };
 
     loop {
@@ -67,15 +68,13 @@ where
             terminal::Clear(ClearType::CurrentLine)
         ).unwrap();
 
-        //New read for how many stocks the user wants to work with.
-        //Need to look into a way to test the input other than this.
         input = read_line();
 
         if input == "back" || input == "Back" {
             break
         }
 
-        user.stocks = input.parse().unwrap();
+        user.stocks_create = input.parse().unwrap();
         //saves user info to file.
         save_user(w, &user);
         //need to have this move to main game loop once that is created.
@@ -87,31 +86,30 @@ pub fn save_user<W>(w: &mut W, user: &User)
 where
     W: Write,
 {
-    execute!(
-        w,
-        cursor::MoveToNextLine(1),
-        style::Print("Saving...")
-    ).unwrap();
+    loop {
+        execute!(
+            w,
+            cursor::MoveToNextLine(1),
+            style::Print("Saving...")
+        ).unwrap();
 
-    let handle = thread::spawn(|| {
+        let mut user_file = File::create("src/user.txt").unwrap_or_else(|error| {
+            panic!("Unable to create file: {}", error);
+        });
+
+        write!(user_file, "Username: {}\nCreate stocks: {}",
+               user.username, user.stocks_create).unwrap();
+
+        execute!(
+            w,
+            style::Print("Save Successful...Press enter to continue"),
+        ).unwrap();
+
         let input = read_line();
 
-        if input == "back" || input == "Back" {
-            process::exit(-1)
-            //break
+        if input == "back" || input == "Back" || input == ""{
+            break
         }
+    }
 
-        if input == "" {
-            process::exit(0)
-            //break
-        }
-    });
-
-    execute!(
-        w,
-        style::Print("test"),
-    ).unwrap();
-    thread::sleep(Duration::from_secs(1));
-
-    handle.join().unwrap()
 }
