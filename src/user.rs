@@ -1,4 +1,4 @@
-use std::io::{Write, stdout, ErrorKind};
+use std::io::{Write, stdout, ErrorKind, Read};
 use crossterm::{execute, queue};
 use crossterm::terminal::{self, Clear, ClearType};
 use crossterm::cursor::{self};
@@ -10,6 +10,9 @@ use std::fs::File;
 use crossterm::event::poll;
 use std::process::exit;
 use std::panic::panic_any;
+use std::ops::Drop;
+use crate::{command, stock};
+use crate::stock::Stock;
 
 
 const CREATE: &str = r#"We will now create a new user for you.
@@ -20,7 +23,8 @@ Quit"#;
 
 pub struct User {
     pub username: String,
-    pub stocks_create: i32
+    pub stocks_create: i32,
+    pub stocks: Vec<Stock>
 }
 
 pub fn create<W>(w: &mut W)
@@ -29,7 +33,8 @@ where
 {
     let mut user = User{
         username: "".parse().unwrap(),
-        stocks_create: 0
+        stocks_create: 0,
+        stocks: vec![],
     };
 
     loop {
@@ -76,40 +81,40 @@ where
 
         user.stocks_create = input.parse().unwrap();
         //saves user info to file.
-        save_user(w, &user);
+        save_user(&user);
         //need to have this move to main game loop once that is created.
-        break
+        command::game_loop(w);
     }
 }
 
-pub fn save_user<W>(w: &mut W, user: &User)
-where
-    W: Write,
-{
-    loop {
-        execute!(
-            w,
-            cursor::MoveToNextLine(1),
-            style::Print("Saving...")
-        ).unwrap();
+pub fn load_user() -> User{
+    let mut user = User {
+        username: "".to_string(),
+        stocks_create: 0,
+        stocks: vec![]
+    };
 
-        let mut user_file = File::create("src/user.txt").unwrap_or_else(|error| {
-            panic!("Unable to create file: {}", error);
-        });
+    let mut user_file = File::open("src/user.txt").unwrap();
 
-        write!(user_file, "Username: {}\nCreate stocks: {}",
-               user.username, user.stocks_create).unwrap();
+    let mut stock_file = File::open("src/stock.txt").unwrap();
 
-        execute!(
-            w,
-            style::Print("Save Successful...Press enter to continue"),
-        ).unwrap();
+    let mut tmp = String::new();
 
-        let input = read_line();
+    stock_file.read_to_string(&mut tmp).unwrap();
 
-        if input == "back" || input == "Back" || input == ""{
-            break
-        }
+    if tmp.is_empty() {
+        user.stocks = stock::create_stocks(user.stocks_create);
     }
+
+    user
+}
+
+pub fn save_user(user: &User) {
+    let mut user_file = File::create("src/user.txt").unwrap_or_else(|error| {
+        panic!("Unable to create file: {}", error);
+    });
+
+    write!(user_file, "Username: {}\nCreate stocks: {}",
+           user.username, user.stocks_create).unwrap();
 
 }

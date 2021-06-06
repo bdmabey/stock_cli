@@ -1,2 +1,2 @@
 Username: test
-Create stocks: 123
+Create stocks: 2

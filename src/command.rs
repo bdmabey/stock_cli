@@ -4,10 +4,14 @@ use crossterm::terminal::{self, ClearType, EnterAlternateScreen, size};
 use crossterm::cursor::{self};
 use crossterm::event::{self, Event, KeyEvent, KeyCode, read};
 use std::{process, thread};
-use crate::user::{create};
+use crate::user::{create, User, load_user};
 use std::sync::mpsc::channel;
+use std::time::Duration;
+use crate::stock::Stock;
+use crate::stock;
+use rand::thread_rng;
 
-const WELCOME: &str = r#"Welcome to my stock simulator.
+const WELCOME: &str = r#"Welcome to my Stock simulator.
 
 Please select a command from below (You may enter the number or type out the command):
 Begin
@@ -32,10 +36,18 @@ Quit"#;
 
 const BEGIN: &str = r#"Great let's get started.
 
-Please tyoe a command from below:
+Please type a command from below:
 Load
 Create
 Back
+Quit"#;
+
+const GAME_LOOP: &str = r#"Username:
+Stock info here
+
+Please type a command from below:
+Buy
+Sell
 Quit"#;
 
 pub fn startup<W>(w: &mut W) -> Result<()>
@@ -89,8 +101,8 @@ where
 
         let input = read_line();
 
-        if input == "load" || input == "Load" {
-            create(w)
+        if input == "Load" || input == "load" {
+            game_loop(w);
         }
 
         if input == "create" || input == "Create" {
@@ -140,6 +152,22 @@ where
             process::exit(0)
         }
     }
+}
+
+pub fn game_loop<W> (w: &mut W)
+where
+    W: Write,
+{
+    let mut user = load_user();
+
+    execute!(
+            w,
+            terminal::Clear(ClearType::All),
+            cursor::MoveTo(0,0),
+            style::Print(user.username)
+        ).unwrap();
+    thread::sleep(Duration::from_secs(1));
+
 }
 
 pub fn read_line() -> String {
