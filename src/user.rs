@@ -1,19 +1,12 @@
-use std::io::{Write, stdout, ErrorKind, Read};
+use std::io::{Write, Read};
 use crossterm::{execute, queue};
-use crossterm::terminal::{self, Clear, ClearType};
+use crossterm::terminal::{self, ClearType};
 use crossterm::cursor::{self};
 use crossterm::style;
 use crate::command::read_line;
-use std::{process, thread};
-use std::time::Duration;
 use std::fs::File;
-use crossterm::event::poll;
-use std::process::exit;
-use std::panic::panic_any;
-use std::ops::Drop;
 use crate::{command, stock};
 use crate::stock::Stock;
-
 
 const CREATE: &str = r#"We will now create a new user for you.
 
@@ -24,7 +17,9 @@ Quit"#;
 pub struct User {
     pub username: String,
     pub stocks_create: i32,
-    pub stocks: Vec<Stock>
+    pub money: f32,
+    pub stocks: Vec<Stock>,
+    pub runnable: bool
 }
 
 pub fn create<W>(w: &mut W)
@@ -34,7 +29,9 @@ where
     let mut user = User{
         username: "".parse().unwrap(),
         stocks_create: 0,
+        money: 1000.00,
         stocks: vec![],
+        runnable: true
     };
 
     loop {
@@ -80,6 +77,8 @@ where
         }
 
         user.stocks_create = input.parse().unwrap();
+        user.runnable = true;
+        user.stocks = stock::create_stocks(user.stocks_create);
         //saves user info to file.
         save_user(&user);
         //need to have this move to main game loop once that is created.
@@ -90,22 +89,52 @@ where
 pub fn load_user() -> User{
     let mut user = User {
         username: "".to_string(),
+        money: 1000.00,
         stocks_create: 0,
-        stocks: vec![]
+        stocks: vec![],
+        runnable: true
     };
 
     let mut user_file = File::open("src/user.txt").unwrap();
 
     let mut stock_file = File::open("src/stock.txt").unwrap();
 
-    let mut tmp = String::new();
+    let mut input = String::new();
 
-    stock_file.read_to_string(&mut tmp).unwrap();
+    let mut info = vec![];
 
-    if tmp.is_empty() {
-        user.stocks = stock::create_stocks(user.stocks_create);
+    user_file.read_to_string(&mut input).unwrap();
+
+    for line in input.split('\n') {
+        info.push(line);
     }
 
+    user.username = info[0].parse().unwrap();
+    user.stocks_create = info[1].parse().unwrap();
+    user.money = info[2].parse().unwrap();
+    user.runnable = info[3].parse().unwrap();
+
+    input.clear();
+
+    stock_file.read_to_string(&mut input).unwrap();
+
+    if input.is_empty() {
+        user.stocks = stock::create_stocks(user.stocks_create);
+    } else {
+        let x: Vec<&str> = input.split(", ").collect();
+        let mut size: usize = 0;
+        for _i in &x {
+            size += 1
+        }
+        for i in (0..size-1).step_by(3) {
+            let stock = Stock{
+                price: x[i+2].parse().unwrap(),
+                quantity: x[i+1].parse().unwrap(),
+                name: x[i].parse().unwrap()
+            };
+            user.stocks.push(stock);
+        }
+    }
     user
 }
 
@@ -114,7 +143,17 @@ pub fn save_user(user: &User) {
         panic!("Unable to create file: {}", error);
     });
 
-    write!(user_file, "Username: {}\nCreate stocks: {}",
-           user.username, user.stocks_create).unwrap();
+    let mut stock_file = File::create("src/stock.txt").unwrap();
+
+    let mut pos: usize = 0;
+    for _i in &user.stocks {pos += 1}
+
+    for i in 0..pos {
+        write!(stock_file, "{}, {}, {}, ",
+        user.stocks[i].name, user.stocks[i].quantity, user.stocks[i].price).unwrap();
+    }
+
+    write!(user_file, "{}\n{}\n{}\n{}",
+           user.username, user.stocks_create, user.money, user.runnable).unwrap();
 
 }

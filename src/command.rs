@@ -1,15 +1,14 @@
 use std::io::{Write, stdout};
 use crossterm::{Result, queue, execute, style};
-use crossterm::terminal::{self, ClearType, EnterAlternateScreen, size};
+use crossterm::terminal::{self, ClearType, EnterAlternateScreen};
 use crossterm::cursor::{self};
-use crossterm::event::{self, Event, KeyEvent, KeyCode, read};
+use crossterm::event::{self, Event, KeyEvent, KeyCode   };
 use std::{process, thread};
-use crate::user::{create, User, load_user};
-use std::sync::mpsc::channel;
+use crate::user::{create, load_user, save_user};
 use std::time::Duration;
-use crate::stock::Stock;
 use crate::stock;
-use rand::thread_rng;
+use std::mem::drop;
+use std::sync::mpsc::channel;
 
 const WELCOME: &str = r#"Welcome to my Stock simulator.
 
@@ -43,12 +42,8 @@ Back
 Quit"#;
 
 const GAME_LOOP: &str = r#"Username:
-Stock info here
-
-Please type a command from below:
-Buy
-Sell
-Quit"#;
+Stock info here:
+"#;
 
 pub fn startup<W>(w: &mut W) -> Result<()>
 where
@@ -90,7 +85,7 @@ where
             w,
             terminal::Clear(ClearType::All),
             cursor::MoveTo(0,0)
-        );
+        ).unwrap();
 
         for line in BEGIN.split('\n') {
             queue!(w, style::Print(line), cursor::MoveToNextLine(1)).unwrap()
@@ -148,7 +143,7 @@ where
                 style::ResetColor,
                 terminal::LeaveAlternateScreen,
             ).unwrap();
-            terminal::disable_raw_mode();
+            terminal::disable_raw_mode().unwrap();
             process::exit(0)
         }
     }
@@ -159,15 +154,83 @@ where
     W: Write,
 {
     let mut user = load_user();
+    user.runnable = true;
+    save_user(&user);
 
-    execute!(
-            w,
-            terminal::Clear(ClearType::All),
-            cursor::MoveTo(0,0),
-            style::Print(user.username)
-        ).unwrap();
-    thread::sleep(Duration::from_secs(1));
+    queue!(
+        w,
+        terminal::Clear(ClearType::All),
+        cursor::MoveTo(0,0),
+    ).unwrap();
 
+    for line in GAME_LOOP.split('\n'){
+        queue!(w, style::Print(line), cursor::MoveToNextLine(1)).unwrap()
+    }
+
+    let handle = thread::spawn(move || {
+        let mut stdout = stdout();
+        loop {
+            let user = load_user();
+            let mut pos: usize = 0;
+            for _i in &user.stocks {
+                pos+=1
+            }
+            execute!(
+                stdout,
+                cursor::MoveTo(9,0),
+                style::Print(&user.username),
+                cursor::MoveRight(2),
+                style::Print("Money: "),
+                style::Print(&user.money),
+                cursor::MoveTo(0,1),
+                style::Print("Stock Name:      Cost:        Quantity Owned:"),
+                cursor::MoveTo(0,2)
+            ).unwrap();
+
+            for i in 0..pos {
+                let add: u16 = i as u16;
+                execute!(
+                stdout,
+                cursor::MoveTo(0, 2 + add),
+                style::Print(&user.stocks[i].name),
+                cursor::MoveTo(17, 2+add),
+                style::Print(&user.stocks[i].price),
+                cursor::MoveTo(30, 2+add),
+                style::Print(&user.stocks[i].quantity),
+            ).unwrap();
+            }
+
+            execute!(
+                stdout,
+                cursor::MoveToNextLine(2),
+                style::Print("Please enter a command from below:"),
+                cursor::MoveToNextLine(1),
+                style::Print("Buy"),
+                cursor::MoveToNextLine(1),
+                style::Print("Sell"),
+                cursor::MoveToNextLine(1),
+                style::Print("Quit"),
+                cursor::MoveToNextLine(1),
+            ).unwrap();
+            if user.runnable == false {
+                break
+            }
+            thread::sleep(Duration::from_secs(5));
+            stock::update_cost();
+        }
+    });
+
+    let input = read_line();
+
+    if input == "Buy" || input == "buy"{
+        user.runnable = false;
+        save_user(&user);
+        handle.join().unwrap();
+        stock::buy(w)
+    }
+    if input == "Sell" || input == "sell"{
+        stock::sell(w)
+    }
 }
 
 pub fn read_line() -> String {
