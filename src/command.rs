@@ -7,8 +7,6 @@ use std::{process, thread};
 use crate::user::{create, load_user, save_user};
 use std::time::Duration;
 use crate::stock;
-use std::mem::drop;
-use std::sync::mpsc::channel;
 
 const WELCOME: &str = r#"Welcome to my Stock simulator.
 
@@ -171,6 +169,9 @@ where
         let mut stdout = stdout();
         loop {
             let user = load_user();
+            if user.runnable == false {
+                break
+            }
             let mut pos: usize = 0;
             for _i in &user.stocks {
                 pos+=1
@@ -212,9 +213,6 @@ where
                 style::Print("Quit"),
                 cursor::MoveToNextLine(1),
             ).unwrap();
-            if user.runnable == false {
-                break
-            }
             thread::sleep(Duration::from_secs(5));
             stock::update_cost();
         }
@@ -229,6 +227,9 @@ where
         stock::buy(w)
     }
     if input == "Sell" || input == "sell"{
+        user.runnable = false;
+        save_user(&user);
+        thread::sleep(Duration::from_secs(5));
         stock::sell(w)
     }
 }
